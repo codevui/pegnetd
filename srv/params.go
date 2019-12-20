@@ -249,15 +249,6 @@ type ParamsSendTransaction struct {
 	entry   factom.Entry
 }
 
-type ParamsNewTx struct {
-	ParamsToken
-	EsAddress   string `json:"esAddress,omitempty"`
-	FromAddress string `json:"fromAddress,omitempty"`
-	Asset       string `json:"asset,omitempty"`
-	Amount      string `json:"amount,omitempty"`
-	ToAddress   string `json:"toAddress,omitempty"`
-}
-
 func (p *ParamsSendTransaction) IsValid() error {
 	if p.Raw != nil {
 		if p.ExtIDs != nil || p.Content != nil || p.ParamsToken != (ParamsToken{}) {
@@ -292,4 +283,28 @@ func (p *ParamsSendTransaction) IsValid() error {
 
 func (p ParamsSendTransaction) Entry() factom.Entry {
 	return p.entry
+}
+
+type ParamsNewTx struct {
+	ParamsToken
+	EsAddress   string `json:"esAddress,omitempty"`
+	FromAddress string `json:"fromAddress,omitempty"`
+	Asset       string `json:"asset,omitempty"`
+	Amount      string `json:"amount,omitempty"`
+	ToAddress   string `json:"toAddress,omitempty"`
+}
+
+func (p ParamsNewTx) IsValid() error {
+	// error check input
+	if p.FromAddress != "" {
+		if _, err := factom.NewFAAddress(p.FromAddress); err != nil {
+			return jrpc.ErrorInvalidParams("fromAddress: " + err.Error())
+		}
+	}
+	if p.ToAddress != "" {
+		if _, err := factom.NewFAAddress(p.ToAddress); err != nil {
+			return jrpc.ErrorInvalidParams("toAddress: " + err.Error())
+		}
+	}
+	return nil
 }
