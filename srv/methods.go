@@ -441,7 +441,7 @@ func (s *APIServer) newtx(_ context.Context, data json.RawMessage) interface{} {
 	if err := setTransferOutput(&trans, params.ToAddress, params.Amount); err != nil {
 		return err
 	}
-	err, commit, reveal := signAndSend(&trans, cl, params.EsAddress)
+	err, commit, reveal := signAndSend(&trans, cl, params.EcAddress)
 	if err != nil {
 		return err
 	}
