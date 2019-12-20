@@ -28,6 +28,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/spf13/viper"
 	"sort"
 
 	jrpc "github.com/AdamSLevy/jsonrpc2/v13"
@@ -49,6 +50,7 @@ func (s *APIServer) jrpcMethods() jrpc.MethodMap {
 		"get-pegnet-balances":    s.getPegnetBalances,
 		"get-pegnet-issuance":    s.getPegnetIssuance,
 		"send-transaction":       s.sendTransaction,
+		"new-tx":                 s.newtx,
 
 		"get-sync-status": s.getSyncStatus,
 
@@ -420,6 +422,38 @@ func (s *APIServer) sendTransaction(_ context.Context, data json.RawMessage) int
 		Hash    *factom.Bytes32 `json:"entryhash"`
 	}{ChainID: entry.ChainID, TxID: txID, Hash: entry.Hash}
 	return nil
+}
+
+func (s *APIServer) newtx(_ context.Context, data json.RawMessage) interface{} {
+	cl := node.FactomClientFromConfig(viper.GetViper())
+	params := ParamsNewTx{}
+	_, _, err := validate(data, &params)
+	if err != nil {
+		return err
+	}
+	// Build the transaction from the args
+	var trans fat2.Transaction
+	if err := setTransactionInput(&trans, params.FromAddress, params.Asset, params.Amount); err != nil {
+		return err
+	}
+
+	if err := setTransferOutput(&trans, params.ToAddress, params.Amount); err != nil {
+		return err
+	}
+
+	err, commit, reveal := signAndSend(&trans, cl, params.EsAddress)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("transaction sent:\n")
+	fmt.Printf("\t%10s: %s\n", "EntryHash", reveal)
+	fmt.Printf("\t%10s: %s\n", "Commit", commit)
+
+	return struct {
+		Commit *factom.Bytes32 `json:"commit"`
+		Reveal *factom.Bytes32 `json:"reveal"`
+	}{Commit: commit, Reveal: reveal}
 }
 
 //func attemptApplyFAT2TxBatch(chain *engine.Chain, e factom.Entry) (txErr, err error) {

@@ -249,6 +249,15 @@ type ParamsSendTransaction struct {
 	entry   factom.Entry
 }
 
+type ParamsNewTx struct {
+	ParamsToken
+	FromAddress string `json:"fromAddress,omitempty"`
+	ToAddress   string `json:"toAddress,omitempty"`
+	Amount      string `json:"amount,omitempty"`
+	Asset       string `json:"asset,omitempty"`
+	EsAddress   string `json:"esAddress,omitempty"`
+}
+
 func (p *ParamsSendTransaction) IsValid() error {
 	if p.Raw != nil {
 		if p.ExtIDs != nil || p.Content != nil || p.ParamsToken != (ParamsToken{}) {

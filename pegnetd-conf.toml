@@ -3,7 +3,7 @@
   loglevel = "info"
   apilisten = "8070"
   # Hardcoding the mainnet path, but allowing for future net support
-  dbpath   = "$HOME/.pegnetd/mainnet/node.db"
+  dbpath   = "$HOME/vinex-blockchain/pegnet-compose/volumes/pegnetd/mainnet/node.db.v4"
 
   # EC3TsJHUs8bzbbVnratBafub6toRYdgzgbR7kWwCW4tqbmyySRmg
   ecPrivateKey = "Es2XT3jSxi1xqrDvS5JERM3W3jh1awRHuyoahn3hbQLyfEi1jvbq"
