@@ -287,7 +287,7 @@ func (p ParamsSendTransaction) Entry() factom.Entry {
 
 type ParamsNewTx struct {
 	ParamsToken
-	EsAddress   string `json:"esAddress,omitempty"`
+	EcAddress   string `json:"ecAddress,omitempty"`
 	FromAddress string `json:"fromAddress,omitempty"`
 	Asset       string `json:"asset,omitempty"`
 	Amount      string `json:"amount,omitempty"`
@@ -304,6 +304,11 @@ func (p ParamsNewTx) IsValid() error {
 	if p.ToAddress != "" {
 		if _, err := factom.NewFAAddress(p.ToAddress); err != nil {
 			return jrpc.ErrorInvalidParams("toAddress: " + err.Error())
+		}
+	}
+	if p.EcAddress != "" {
+		if _, err := factom.NewECAddress(p.EcAddress); err != nil {
+			return jrpc.ErrorInvalidParams("ecAddress: " + err.Error())
 		}
 	}
 	return nil

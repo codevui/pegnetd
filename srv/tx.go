@@ -11,13 +11,10 @@ import (
 
 func signAndSend(tx *fat2.Transaction, cl *factom.Client, payment string) (err error, commit *factom.Bytes32, reveal *factom.Bytes32) {
 	// Get out private key
-	fmt.Printf("sign and send 1\n")
 	priv, err := tx.Input.Address.GetFsAddress(cl)
 	if err != nil {
 		return fmt.Errorf("unable to get private key: %s\n", err.Error()), nil, nil
 	}
-	fmt.Printf("sign and send 2\n")
-
 	var txBatch fat2.TransactionBatch
 	txBatch.Version = 1
 	txBatch.Transactions = []fat2.Transaction{*tx}
@@ -30,36 +27,29 @@ func signAndSend(tx *fat2.Transaction, cl *factom.Client, payment string) (err e
 	}
 
 	txBatch.Sign(priv)
-	fmt.Printf("sign and send 3\n")
 
 	if err := txBatch.Validate(); err != nil {
 		return fmt.Errorf("invalid tx: %s", err.Error()), nil, nil
 	}
-	fmt.Printf("sign and send 4\n")
 	ec, err := factom.NewECAddress(payment)
 	if err != nil {
 		return fmt.Errorf("failed to parse input: %s\n", err.Error()), nil, nil
 	}
-	fmt.Printf("sign and send 5\n")
 	bal, err := ec.GetBalance(cl)
 	if err != nil {
 		return fmt.Errorf("failed to get ec balance: %s\n", err.Error()), nil, nil
 	}
-	fmt.Printf("sign and send 6\n")
 	if cost, err := txBatch.Cost(false); err != nil || uint64(cost) > bal {
 		return fmt.Errorf("not enough ec balance for the transaction"), nil, nil
 	}
-	fmt.Printf("sign and send 7\n")
 	es, err := ec.GetEsAddress(cl)
 	if err != nil {
 		return fmt.Errorf("failed to parse input: %s\n", err.Error()), nil, nil
 	}
-	fmt.Printf("sign and send 8\n")
 	txid, err := txBatch.ComposeCreate(cl, es, false)
 	if err != nil {
 		return fmt.Errorf("failed to submit entry: %s\n", err.Error()), nil, nil
 	}
-	fmt.Printf("sign and send 9\n")
 	return nil, txid, txBatch.Hash
 }
 

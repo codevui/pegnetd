@@ -316,8 +316,7 @@ func (r *ResultPegnetTickerMap) UnmarshalJSON(data []byte) error {
 }
 
 func (s *APIServer) getPegnetBalances(_ context.Context, data json.RawMessage) interface{} {
-	fmt.Printf("getPegnetBalances:\n")
-	fmt.Printf("data %s:\n", data)
+	fmt.Printf("getPegnetBalances %s:\n", data)
 	params := ParamsGetPegnetBalances{}
 	if _, _, err := validate(data, &params); err != nil {
 		return err
@@ -428,24 +427,20 @@ func (s *APIServer) sendTransaction(_ context.Context, data json.RawMessage) int
 
 func (s *APIServer) newtx(_ context.Context, data json.RawMessage) interface{} {
 	cl := node.FactomClientFromConfig(viper.GetViper())
-	fmt.Printf("newtx:\n")
-	fmt.Printf("data: %s\n", data)
+	fmt.Printf("newtx: %s\n", data)
 	params := ParamsNewTx{}
 	_, _, err := validate(data, &params)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("add input\n")
 	// Build the transaction from the args
 	var trans fat2.Transaction
 	if err := setTransactionInput(&trans, params.FromAddress, params.Asset, params.Amount); err != nil {
 		return err
 	}
-	fmt.Printf("add output\n")
 	if err := setTransferOutput(&trans, params.ToAddress, params.Amount); err != nil {
 		return err
 	}
-	fmt.Printf("sign and send\n")
 	err, commit, reveal := signAndSend(&trans, cl, params.EsAddress)
 	if err != nil {
 		return err
