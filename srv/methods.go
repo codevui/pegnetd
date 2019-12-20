@@ -426,6 +426,7 @@ func (s *APIServer) sendTransaction(_ context.Context, data json.RawMessage) int
 
 func (s *APIServer) newtx(_ context.Context, data json.RawMessage) interface{} {
 	cl := node.FactomClientFromConfig(viper.GetViper())
+	fmt.Printf("newtx:\n")
 	params := ParamsNewTx{}
 	_, _, err := validate(data, &params)
 	if err != nil {

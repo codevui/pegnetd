@@ -251,11 +251,11 @@ type ParamsSendTransaction struct {
 
 type ParamsNewTx struct {
 	ParamsToken
-	FromAddress string `json:"fromAddress,omitempty"`
-	ToAddress   string `json:"toAddress,omitempty"`
-	Amount      string `json:"amount,omitempty"`
-	Asset       string `json:"asset,omitempty"`
 	EsAddress   string `json:"esAddress,omitempty"`
+	FromAddress string `json:"fromAddress,omitempty"`
+	Asset       string `json:"asset,omitempty"`
+	Amount      string `json:"amount,omitempty"`
+	ToAddress   string `json:"toAddress,omitempty"`
 }
 
 func (p *ParamsSendTransaction) IsValid() error {
