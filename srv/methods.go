@@ -450,15 +450,17 @@ func (s *APIServer) newtx(_ context.Context, data json.RawMessage) interface{} {
 	if err != nil {
 		return err
 	}
+	var commitStr = commit.String()
+	var revealStr = reveal.String()
 
 	fmt.Printf("transaction sent:\n")
-	fmt.Printf("\t%10s: %s\n", "EntryHash", reveal)
-	fmt.Printf("\t%10s: %s\n", "Commit", commit)
+	fmt.Printf("\t%10s: %s\n", "EntryHash", revealStr)
+	fmt.Printf("\t%10s: %s\n", "Commit", commitStr)
 
 	return struct {
-		Commit *factom.Bytes32 `json:"commit"`
-		Reveal *factom.Bytes32 `json:"reveal"`
-	}{Commit: commit, Reveal: reveal}
+		Commit string `json:"commit"`
+		Reveal string `json:"reveal"`
+	}{Commit: commitStr, Reveal: revealStr}
 }
 
 //func attemptApplyFAT2TxBatch(chain *engine.Chain, e factom.Entry) (txErr, err error) {
