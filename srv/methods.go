@@ -316,6 +316,8 @@ func (r *ResultPegnetTickerMap) UnmarshalJSON(data []byte) error {
 }
 
 func (s *APIServer) getPegnetBalances(_ context.Context, data json.RawMessage) interface{} {
+	fmt.Printf("getPegnetBalances:\n")
+	fmt.Printf("data %s:\n", data)
 	params := ParamsGetPegnetBalances{}
 	if _, _, err := validate(data, &params); err != nil {
 		return err
@@ -427,7 +429,7 @@ func (s *APIServer) sendTransaction(_ context.Context, data json.RawMessage) int
 func (s *APIServer) newtx(_ context.Context, data json.RawMessage) interface{} {
 	cl := node.FactomClientFromConfig(viper.GetViper())
 	fmt.Printf("newtx:\n")
-	fmt.Printf("%j", data)
+	fmt.Printf("data: %s\n", data)
 	params := ParamsNewTx{}
 	_, _, err := validate(data, &params)
 	if err != nil {
