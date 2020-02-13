@@ -29,10 +29,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/spf13/viper"
+	"runtime"
 	"sort"
 
 	jrpc "github.com/AdamSLevy/jsonrpc2/v13"
 	"github.com/Factom-Asset-Tokens/factom"
+	sqlite3 "github.com/mattn/go-sqlite3"
 	"github.com/pegnet/pegnet/modules/conversions"
 	"github.com/pegnet/pegnetd/config"
 	"github.com/pegnet/pegnetd/fat/fat2"
@@ -44,6 +46,8 @@ func (s *APIServer) jrpcMethods() jrpc.MethodMap {
 	return jrpc.MethodMap{
 		"get-rich-list":          s.getRichList,
 		"get-global-rich-list":   s.getGlobalRichList,
+		"get-miner-distribution": s.getMiningDominance,
+		"get-bank":               s.getBank,
 		"get-transactions":       s.getTransactions(false),
 		"get-transaction-status": s.getTransactionStatus,
 		"get-transaction":        s.getTransactions(true),
@@ -53,10 +57,87 @@ func (s *APIServer) jrpcMethods() jrpc.MethodMap {
 		"new-tx":                 s.newtx,
 
 		"get-sync-status": s.getSyncStatus,
+		"properties":      s.properties,
 
 		"get-pegnet-rates": s.getPegnetRates,
 	}
 
+}
+
+type PegnetdProperties struct {
+	BuildVersion  string `json:"buildversion"`
+	BuildCommit   string `json:"buildcommit"`
+	SQLiteVersion string `json:"sqliteversion"`
+	GolangVersion string `json:"golang"`
+}
+
+func (APIServer) properties(_ context.Context, data json.RawMessage) interface{} {
+	sqliteVersion, _, _ := sqlite3.Version()
+	return PegnetdProperties{
+		BuildVersion:  config.CompiledInVersion,
+		BuildCommit:   config.CompiledInBuild,
+		SQLiteVersion: sqliteVersion,
+		GolangVersion: runtime.Version(),
+	}
+}
+
+func (s *APIServer) getBank(ctx context.Context, data json.RawMessage) interface{} {
+	params := ParamsGetBank{}
+	_, _, err := validate(data, &params)
+	if err != nil {
+		return err
+	}
+
+	if params.Height == 0 {
+		synced, err := s.Node.Pegnet.SelectSynced(ctx, s.Node.Pegnet.DB)
+		if err != nil {
+			return err
+		}
+		params.Height = int32(synced.Synced)
+	}
+
+	if params.Height < int32(node.V4OPRUpdate) {
+		return jrpc.ErrorInvalidParams(fmt.Sprintf("the height %d is below the activation height (%d) of this feature", params.Height, node.V4OPRUpdate))
+	}
+	result, err := s.Node.Pegnet.SelectBankEntry(nil, params.Height)
+	if err != nil {
+		return err
+	}
+	return result
+}
+
+// getMiningDominance returns the representation of rewarded miners for a given
+// block range
+func (s *APIServer) getMiningDominance(ctx context.Context, data json.RawMessage) interface{} {
+	params := ParamsGetMiningDominance{}
+	_, _, err := validate(data, &params)
+	if err != nil {
+		return err
+	}
+
+	if params.Start == 0 && params.Stop < 0 {
+		// If the start is 0, and stop is negative, then the user is requesting
+		// the last STOP blocks
+		synced, err := s.Node.Pegnet.SelectSynced(ctx, s.Node.Pegnet.DB)
+		if err != nil {
+			return err
+		}
+		params.Start = int(synced.Synced) + params.Stop
+		params.Stop = int(synced.Synced)
+	} else if params.Stop == 0 {
+		// If the stop is 0, then the stop is the end.
+		synced, err := s.Node.Pegnet.SelectSynced(ctx, s.Node.Pegnet.DB)
+		if err != nil {
+			return err
+		}
+		params.Stop = int(synced.Synced)
+	}
+
+	result, err := s.Node.Pegnet.SelectMinerDominance(ctx, params.Start, params.Stop)
+	if err != nil {
+		return err
+	}
+	return result
 }
 
 type ResultGlobalRichList struct {
@@ -257,7 +338,7 @@ func (s *APIServer) getTransactions(forceTxId bool) func(_ context.Context, data
 			_ = hash.UnmarshalText([]byte(params.Hash)) // error checked by params.valid
 			actions, count, err = s.Node.Pegnet.SelectTransactionHistoryActionsByHash(hash, options)
 		} else if params.Address != "" {
-			addr, _ := factom.NewFAAddress(params.Address) // verified in param
+			addr, _ := underlyingFA(params.Address) // verified in param
 			actions, count, err = s.Node.Pegnet.SelectTransactionHistoryActionsByAddress(&addr, options)
 		} else if params.TxID != "" {
 			hash := new(factom.Bytes32)
@@ -321,7 +402,9 @@ func (s *APIServer) getPegnetBalances(_ context.Context, data json.RawMessage) i
 	if _, _, err := validate(data, &params); err != nil {
 		return err
 	}
-	bals, err := s.Node.Pegnet.SelectBalances(params.Address)
+	add, _ := underlyingFA(params.Address)
+
+	bals, err := s.Node.Pegnet.SelectBalances(&add)
 	if err == sql.ErrNoRows {
 		return ErrorAddressNotFound
 	}
@@ -352,12 +435,21 @@ func (s *APIServer) getPegnetIssuance(_ context.Context, data json.RawMessage) i
 	}
 }
 
-func (s *APIServer) getPegnetRates(_ context.Context, data json.RawMessage) interface{} {
+func (s *APIServer) getPegnetRates(ctx context.Context, data json.RawMessage) interface{} {
 	params := ParamsGetPegnetRates{}
 	if _, _, err := validate(data, &params); err != nil {
 		return err
 	}
-	rates, err := s.Node.Pegnet.SelectRates(context.Background(), *params.Height)
+
+	if params.Height == 0 {
+		synced, err := s.Node.Pegnet.SelectSynced(ctx, s.Node.Pegnet.DB)
+		if err != nil {
+			return err
+		}
+		params.Height = uint32(synced.Synced)
+	}
+
+	rates, err := s.Node.Pegnet.SelectRates(ctx, params.Height)
 	if err == sql.ErrNoRows || rates == nil || len(rates) == 0 {
 		return ErrorNotFound
 	}
@@ -396,13 +488,13 @@ func (s *APIServer) sendTransaction(_ context.Context, data json.RawMessage) int
 	//	return err
 	//}
 
-	var txID *factom.Bytes32
+	var txID factom.Bytes32
 	if !params.DryRun {
-		balance, err := ecPrivateKey.ECAddress().GetBalance(s.Node.FactomClient)
+		balance, err := ecPrivateKey.ECAddress().GetBalance(nil, s.Node.FactomClient)
 		if err != nil {
 			panic(err)
 		}
-		cost, err := entry.Cost(false)
+		cost, err := entry.Cost()
 		if err != nil {
 			rerr := ErrorInvalidTransaction
 			rerr.Data = err.Error()
@@ -411,7 +503,7 @@ func (s *APIServer) sendTransaction(_ context.Context, data json.RawMessage) int
 		if balance < uint64(cost) {
 			return ErrorNoEC
 		}
-		txID, err = entry.ComposeCreate(s.Node.FactomClient, ecPrivateKey, false)
+		txID, err = entry.ComposeCreate(nil, s.Node.FactomClient, ecPrivateKey)
 		if err != nil {
 			panic(err)
 		}
@@ -421,7 +513,7 @@ func (s *APIServer) sendTransaction(_ context.Context, data json.RawMessage) int
 		ChainID *factom.Bytes32 `json:"chainid"`
 		TxID    *factom.Bytes32 `json:"txid,omitempty"`
 		Hash    *factom.Bytes32 `json:"entryhash"`
-	}{ChainID: entry.ChainID, TxID: txID, Hash: entry.Hash}
+	}{ChainID: entry.ChainID, TxID: &txID, Hash: entry.Hash}
 	return nil
 }
 
@@ -435,13 +527,13 @@ func (s *APIServer) newtx(_ context.Context, data json.RawMessage) interface{} {
 	}
 	// Build the transaction from the args
 	var trans fat2.Transaction
-	if err := setTransactionInput(&trans, params.FromAddress, params.Asset, params.Amount); err != nil {
+	if err := setTransactionInput(&trans, cl, params.FromAddress, params.Asset, params.Amount); err != nil {
 		return err
 	}
-	if err := setTransferOutput(&trans, params.ToAddress, params.Amount); err != nil {
+	if err := setTransferOutput(&trans, cl, params.ToAddress, params.Amount); err != nil {
 		return err
 	}
-	err, commit, reveal := signAndSend(&trans, cl, params.EcAddress)
+	err, commit, reveal := signAndSend(params.FromAddress, &trans, cl, params.EcAddress)
 	if err != nil {
 		return err
 	}
@@ -485,7 +577,7 @@ type ResultGetSyncStatus struct {
 
 func (s *APIServer) getSyncStatus(_ context.Context, data json.RawMessage) interface{} {
 	heights := new(factom.Heights)
-	err := heights.Get(s.Node.FactomClient)
+	err := heights.Get(nil, s.Node.FactomClient)
 	if err != nil {
 		return ResultGetSyncStatus{Sync: s.Node.GetCurrentSync(), Current: -1}
 	}
