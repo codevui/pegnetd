@@ -53,6 +53,7 @@ func (s *APIServer) jrpcMethods() jrpc.MethodMap {
 		"get-transaction":        s.getTransactions(true),
 		"get-pegnet-balances":    s.getPegnetBalances,
 		"get-pegnet-issuance":    s.getPegnetIssuance,
+		"get-graded":             s.getGraded,
 		"send-transaction":       s.sendTransaction,
 		"new-tx":                 s.newtx,
 
@@ -260,7 +261,7 @@ func (s *APIServer) getRichList(_ context.Context, data json.RawMessage) interfa
 
 type ResultGetTransactionStatus struct {
 	Height   uint32 `json:"height"`
-	Executed uint32 `json:"executed"`
+	Executed int32  `json:"executed"`
 }
 
 func (s *APIServer) getTransactionStatus(_ context.Context, data json.RawMessage) interface{} {
@@ -582,6 +583,28 @@ func (s *APIServer) getSyncStatus(_ context.Context, data json.RawMessage) inter
 		return ResultGetSyncStatus{Sync: s.Node.GetCurrentSync(), Current: -1}
 	}
 	return ResultGetSyncStatus{Sync: s.Node.GetCurrentSync(), Current: int32(heights.DirectoryBlock)}
+}
+
+func (s *APIServer) getGraded(ctx context.Context, data json.RawMessage) interface{} {
+	params := ParamsGetGraded{}
+	_, _, err := validate(data, &params)
+	if err != nil {
+		return err
+	}
+
+	if params.Height == 0 {
+		synced, err := s.Node.Pegnet.SelectSynced(ctx, s.Node.Pegnet.DB)
+		if err != nil {
+			return err
+		}
+		params.Height = int32(synced.Synced)
+	}
+
+	result, err := s.Node.Pegnet.SelectGraded(ctx, params.Height)
+	if err != nil {
+		return err
+	}
+	return result
 }
 
 // TODO: Re-eval this function. The chain data that is supplied needs to be reimplemented
